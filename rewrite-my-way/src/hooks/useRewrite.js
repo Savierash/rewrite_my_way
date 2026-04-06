@@ -25,7 +25,7 @@ export function useRewrite() {
     try {
       console.log("Sending request to:", API_URL);
 
-      const res = await fetch(API_URL, {   // ← uses config, works on mobile + desktop
+      const res = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -68,7 +68,7 @@ export function useRewrite() {
       }
     } catch (err) {
       console.error("Rewrite error:", err.message);
-      setError(`Something went wrong: ${err.message}`);
+      setError(`Failed: ${err.message} | API: ${API_URL}`);  // ← shows exact URL on phone
       setOutput("");
     } finally {
       isLoadingRef.current = false;
