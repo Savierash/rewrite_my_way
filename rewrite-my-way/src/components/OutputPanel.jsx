@@ -3,6 +3,7 @@ import { useState } from "react";
 import { tones } from "../data/tones";
 import CopyButton from "./CopyButton";
 import CompareView from "./CompareView";
+import { API_URL } from "../config";
 import { Document, Paragraph, TextRun, Packer } from "docx";
 
 function DownloadButton({ text, toneLabel }) {
@@ -64,7 +65,6 @@ function DownloadButton({ text, toneLabel }) {
   );
 }
 
-// Inline translation logic — no separate component needed
 function useTranslation() {
   const [selectedLang, setSelectedLang] = useState("");
   const [translated,   setTranslated]   = useState("");
@@ -80,7 +80,7 @@ function useTranslation() {
     setStreaming(true);
 
     try {
-      const res = await fetch("http://localhost:3001/api/v1/messages", {
+      const res = await fetch(API_URL, {   // ← uses config, works on mobile + desktop
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -147,9 +147,9 @@ const LANGUAGES = [
 ];
 
 export default function OutputPanel({ output, streaming, activeTone, inputText, customTones = {} }) {
-  const [compareMode,  setCompareMode]  = useState(false);
+  const [compareMode,   setCompareMode]   = useState(false);
   const [translateMode, setTranslateMode] = useState(false);
-  const [copiedTx,     setCopiedTx]     = useState(false);
+  const [copiedTx,      setCopiedTx]      = useState(false);
 
   const {
     selectedLang, translated, isLoading: txLoading,
@@ -158,8 +158,8 @@ export default function OutputPanel({ output, streaming, activeTone, inputText, 
 
   if (!output && !streaming) return null;
 
-  const allTones  = { ...tones, ...customTones };
-  const tone      = allTones[activeTone] || tones["genz"];
+  const allTones   = { ...tones, ...customTones };
+  const tone       = allTones[activeTone] || tones["genz"];
   const activeLang = LANGUAGES.find(l => l.code === selectedLang);
 
   const copyTx = () => {
@@ -218,7 +218,6 @@ export default function OutputPanel({ output, streaming, activeTone, inputText, 
         borderRadius: "6px 6px 0 0",
         borderBottom: "1px solid #252529",
       }}>
-        {/* Tone badge */}
         <span style={{
           display: "inline-flex", alignItems: "center", gap: 8,
           fontFamily: "'Syne Mono', monospace", fontSize: 10,
@@ -228,11 +227,8 @@ export default function OutputPanel({ output, streaming, activeTone, inputText, 
           {tone.emoji} {tone.label}
         </span>
 
-        {/* Actions */}
         {!streaming && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-
-            {/* Compare toggle */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <button
               onClick={() => { setCompareMode(m => !m); setTranslateMode(false); }}
               style={{
@@ -244,8 +240,6 @@ export default function OutputPanel({ output, streaming, activeTone, inputText, 
             >
               {compareMode ? "↑ collapse" : "↔ compare"}
             </button>
-
-            {/* Translate toggle */}
             <button
               onClick={() => { setTranslateMode(m => !m); setCompareMode(false); }}
               style={{
@@ -257,7 +251,6 @@ export default function OutputPanel({ output, streaming, activeTone, inputText, 
             >
               {translateMode ? "↑ collapse" : "🌐 translate"}
             </button>
-
             <DownloadButton text={output} toneLabel={tone.label} />
             <CopyButton text={output} />
           </div>
@@ -278,7 +271,6 @@ export default function OutputPanel({ output, streaming, activeTone, inputText, 
       {/* ── Translate mode — side by side ── */}
       {translateMode && !compareMode && (
         <>
-          {/* Language picker bar */}
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
             padding: "10px 18px",
@@ -333,11 +325,10 @@ export default function OutputPanel({ output, streaming, activeTone, inputText, 
             </div>
           </div>
 
-          {/* Side by side */}
           <div style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
-            background: "#252529", // column divider
+            background: "#252529",
             border: "1px solid #252529",
             borderTop: "none",
             borderRadius: "0 0 6px 6px",
@@ -398,7 +389,7 @@ export default function OutputPanel({ output, streaming, activeTone, inputText, 
         </>
       )}
 
-      {/* ── Normal output (no mode active) ── */}
+      {/* ── Normal output ── */}
       {!compareMode && !translateMode && (
         <div style={{
           padding: "20px", fontSize: 15, lineHeight: 1.75,

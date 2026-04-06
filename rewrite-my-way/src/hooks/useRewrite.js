@@ -1,12 +1,13 @@
 // src/hooks/useRewrite.js
 import { useState, useRef, useCallback } from "react";
+import { API_URL } from "../config";
 
 export function useRewrite() {
-  const [output, setOutput]    = useState("");
+  const [output, setOutput]     = useState("");
   const [isLoading, setLoading] = useState(false);
-  const [error, setError]      = useState("");
-  const [streaming, setStream] = useState(false);
-  const isLoadingRef           = useRef(false);  // ← ref avoids stale closure
+  const [error, setError]       = useState("");
+  const [streaming, setStream]  = useState(false);
+  const isLoadingRef            = useRef(false);
 
   const rewrite = useCallback(async (inputText, tone) => {
     const text = inputText.trim();
@@ -15,16 +16,16 @@ export function useRewrite() {
 
     if (!text)              return setError("Please enter some text first.");
     if (text.length > 4000) return setError("Text is too long. Keep it under 4,000 characters.");
-    if (isLoadingRef.current) return;  // ← use ref, not state
+    if (isLoadingRef.current) return;
 
     isLoadingRef.current = true;
     setLoading(true);
     setStream(true);
 
     try {
-      console.log("Sending request...");  // ← confirm it reaches here
+      console.log("Sending request to:", API_URL);
 
-      const res = await fetch("http://localhost:3001/api/v1/messages", {
+      const res = await fetch(API_URL, {   // ← uses config, works on mobile + desktop
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -74,7 +75,7 @@ export function useRewrite() {
       setLoading(false);
       setStream(false);
     }
-  }, []);  // ← empty deps, ref handles loading guard
+  }, []);
 
   return { output, isLoading, error, streaming, rewrite };
 }
