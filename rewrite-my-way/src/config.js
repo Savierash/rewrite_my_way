@@ -1,6 +1,2 @@
 // src/config.js
-const isProd = import.meta.env.PROD;
-
-export const API_URL = isProd
-  ? "https://rewrite-my-way-server.onrender.com/api/v1/messages"
-  : "http://localhost:3001/api/v1/messages";
+export const API_URL = "https://rewrite-my-way-server.onrender.com/api/v1/messages";
