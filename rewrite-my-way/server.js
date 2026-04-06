@@ -3,15 +3,22 @@ import 'dotenv/config'
 import { createServer } from 'http'
 
 const API_KEY    = process.env.GROQ_API_KEY
-const PORT       = process.env.PORT || 3001        // ← Render sets PORT automatically
+const PORT       = process.env.PORT || 3001
 const RENDER_URL = "https://rewrite-my-way-server.onrender.com"
 
 console.log('API Key:', API_KEY ? '✓ loaded' : '✗ MISSING')
 
 createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET')
   res.setHeader('Access-Control-Allow-Headers', '*')
+
+  // ← Health check — Render + keep-alive ping hits this
+  if (req.method === 'GET' && req.url === '/') {
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ status: 'ok', message: '✓ Rewrite My Way server is running' }))
+    return
+  }
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204)
@@ -96,7 +103,6 @@ createServer(async (req, res) => {
 }).listen(PORT, () => {
   console.log(`✓ Server running on port ${PORT}`)
 
-  // Keep Render alive — ping every 10 minutes
   setInterval(async () => {
     try {
       await fetch(RENDER_URL)
