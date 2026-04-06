@@ -2,14 +2,23 @@
 import 'dotenv/config'
 import { createServer } from 'http'
 
-const API_KEY = process.env.GROQ_API_KEY
+const API_KEY    = process.env.GROQ_API_KEY
+const PORT       = process.env.PORT || 3001
+const RENDER_URL = "https://rewrite-my-way-server.onrender.com"
 
 console.log('API Key:', API_KEY ? '✓ loaded' : '✗ MISSING')
 
 createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET')
   res.setHeader('Access-Control-Allow-Headers', '*')
+
+  // ← Health check — Render + keep-alive ping hits this
+  if (req.method === 'GET' && req.url === '/') {
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ status: 'ok', message: '✓ Rewrite My Way server is running' }))
+    return
+  }
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204)
@@ -33,8 +42,8 @@ createServer(async (req, res) => {
             'Authorization': `Bearer ${API_KEY}`,
           },
           body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            stream: true,
+            model:      'llama-3.3-70b-versatile',
+            stream:     true,
             max_tokens: 1000,
             messages: [
               { role: 'system', content: parsed.system },
@@ -49,8 +58,7 @@ createServer(async (req, res) => {
         res.setHeader('Cache-Control', 'no-cache')
         res.writeHead(200)
 
-        // Convert Groq SSE → Anthropic SSE format so useRewrite.js needs no changes
-        const reader = response.body.getReader()
+        const reader  = response.body.getReader()
         const decoder = new TextDecoder()
         let buffer = ''
 
@@ -69,11 +77,10 @@ createServer(async (req, res) => {
 
             try {
               const chunk = JSON.parse(data)
-              const text = chunk?.choices?.[0]?.delta?.content
+              const text  = chunk?.choices?.[0]?.delta?.content
               if (text) {
-                // Re-emit in Anthropic delta format so useRewrite.js works unchanged
                 const anthropicChunk = JSON.stringify({
-                  type: 'content_block_delta',
+                  type:  'content_block_delta',
                   delta: { text },
                 })
                 res.write(`data: ${anthropicChunk}\n\n`)
@@ -93,4 +100,13 @@ createServer(async (req, res) => {
     res.writeHead(404)
     res.end()
   }
-}).listen(3001, () => console.log('✓ Proxy server running on http://localhost:3001'))
+}).listen(PORT, () => {
+  console.log(`✓ Server running on port ${PORT}`)
+
+  setInterval(async () => {
+    try {
+      await fetch(RENDER_URL)
+      console.log('✓ Keep-alive ping sent')
+    } catch {}
+  }, 10 * 60 * 1000)
+})

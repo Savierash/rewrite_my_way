@@ -74,6 +74,7 @@ export default function App() {
             streaming={streaming}
             activeTone={activeTone}
             inputText={inputText}
+            customTones={customTones}
           />
           <HistoryPanel
             history={history}
