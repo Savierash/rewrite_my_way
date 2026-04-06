@@ -1,61 +1,96 @@
-export const handler = async (event) => {
-  const API_KEY = process.env.GROQ_API_KEY;
+// server.js
+import 'dotenv/config'
+import { createServer } from 'http'
 
-  // 1. Handle CORS (Same as your server.js)
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': '*',
-    'Content-Type': 'application/json'
-  };
+const API_KEY = process.env.GROQ_API_KEY
 
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers };
+console.log('API Key:', API_KEY ? '✓ loaded' : '✗ MISSING')
+
+createServer(async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', '*')
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204)
+    res.end()
+    return
   }
 
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
+  if (req.method === 'POST' && req.url === '/api/v1/messages') {
+    let body = ''
+    req.on('data', chunk => body += chunk)
+    req.on('end', async () => {
+      try {
+        console.log('→ Forwarding request to Groq...')
+
+        const parsed = JSON.parse(body)
+
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: 'llama-3.3-70b-versatile',
+            stream: true,
+            max_tokens: 1000,
+            messages: [
+              { role: 'system', content: parsed.system },
+              { role: 'user',   content: parsed.messages[0].content },
+            ],
+          }),
+        })
+
+        console.log('← Groq responded:', response.status)
+
+        res.setHeader('Content-Type', 'text/event-stream')
+        res.setHeader('Cache-Control', 'no-cache')
+        res.writeHead(200)
+
+        // Convert Groq SSE → Anthropic SSE format so useRewrite.js needs no changes
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop()
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue
+            const data = line.slice(6).trim()
+            if (!data || data === '[DONE]') continue
+
+            try {
+              const chunk = JSON.parse(data)
+              const text = chunk?.choices?.[0]?.delta?.content
+              if (text) {
+                // Re-emit in Anthropic delta format so useRewrite.js works unchanged
+                const anthropicChunk = JSON.stringify({
+                  type: 'content_block_delta',
+                  delta: { text },
+                })
+                res.write(`data: ${anthropicChunk}\n\n`)
+              }
+            } catch {}
+          }
+        }
+
+        res.end()
+      } catch (err) {
+        console.error('✗ Error:', err.message)
+        res.writeHead(500)
+        res.end(JSON.stringify({ error: err.message }))
+      }
+    })
+  } else {
+    res.writeHead(404)
+    res.end()
   }
-
-  try {
-    const parsed = JSON.parse(event.body);
-
-    // 2. Fetch from Groq (Streaming is tricky in Functions, so we fetch the full result here)
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        stream: false, // Standard functions work best without stream
-        max_tokens: 1000,
-        messages: [
-          { role: 'system', content: parsed.system },
-          { role: 'user',   content: parsed.messages[0].content },
-        ],
-      }),
-    });
-
-    const data = await response.json();
-    const text = data?.choices?.[0]?.message?.content || "";
-
-    // 3. Return in the "Anthropic" format your frontend expects
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        type: 'content_block_delta',
-        delta: { text }
-      })
-    };
-
-  } catch (err) {
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: err.message })
-    };
-  }
-};
+}).listen(3001, () => console.log('✓ Proxy server running on http://localhost:3001'))
