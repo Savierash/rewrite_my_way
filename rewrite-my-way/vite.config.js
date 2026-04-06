@@ -3,6 +3,6 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  // Replace 'rewrite-my-way' with your EXACT GitHub repository name
-  base: '/rewrite-my-way/', 
+  // This must match your repo name with slashes
+  base: '/rewrite_my_way/', 
 })
